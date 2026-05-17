@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0f; color: #f1f5f9; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+/* TOPBAR */
+#topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #111120; border-bottom: 1px solid #1e1e2e; flex-shrink: 0; }
+#logo { display: flex; align-items: center; }
+#logo img { height: 32px; width: auto; display: block; }
+#project-name { font-size: 12px; color: #64748b; border-left: 1px solid #1e1e2e; padding-left: 12px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#search-wrap { position: relative; }
+#search { background: #0d0d18; border: 1px solid #1e1e2e; color: #f1f5f9; padding: 6px 12px 6px 30px; border-radius: 8px; font-size: 13px; width: 210px; transition: border-color 0.15s; font-family: inherit; }
+#search:focus { outline: none; border-color: #a78bfa; background: #111120; }
+#search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 13px; pointer-events: none; }
+#stats-display { margin-left: auto; display: flex; gap: 14px; flex-shrink: 0; }
+.stat-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #64748b; }
+.stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* FILTERBAR */
+#filterbar { display: flex; align-items: center; gap: 6px; padding: 6px 16px; background: #0d0d18; border-bottom: 1px solid #1e1e2e; flex-shrink: 0; flex-wrap: wrap; min-height: 36px; }
+.filter-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-right: 2px; flex-shrink: 0; }
+.filter-btn { padding: 3px 9px; border-radius: 4px; border: 1px solid #1e1e2e; background: transparent; color: #64748b; font-size: 11px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: inherit; }
+.filter-btn .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.filter-btn.active { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); color: #a78bfa; }
+.filter-btn:hover:not(.active) { border-color: #64748b; color: #cbd5e1; }
+.bar-divider { width: 1px; height: 16px; background: #1e1e2e; margin: 0 2px; flex-shrink: 0; }
+#folder-legend { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.folder-chip { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #64748b; white-space: nowrap; }
+.folder-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* MAIN */
+#main { display: flex; flex: 1; overflow: hidden; }
+#canvas { flex: 1; position: relative; overflow: hidden; }
+svg { width: 100%; height: 100%; display: block; }
+
+/* SIDE PANEL */
+#panel { width: 300px; background: #0d0d18; border-left: 1px solid #1e1e2e; overflow-y: auto; transition: width 0.2s ease; flex-shrink: 0; }
+#panel.hidden { width: 0; overflow: hidden; }
+#panel-inner { padding: 16px; min-width: 300px; }
+
+.panel-name { font-size: 15px; font-weight: 700; color: #f1f5f9; word-break: break-all; margin-bottom: 8px; line-height: 1.4; }
+.badge-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-file    { background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
+.badge-function{ background: rgba(16,185,129,0.18); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.35); }
+.badge-class   { background: rgba(59,130,246,0.18); color: #93c5fd; border: 1px solid rgba(59,130,246,0.35); }
+.badge-dead    { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+
+.panel-summary { background: #111120; border: 1px solid #1e1e2e; border-left: 3px solid #a78bfa; border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #64748b; line-height: 1.65; font-style: italic; }
+
+.meta-row { font-size: 12px; color: #64748b; padding: 2px 0; display: flex; gap: 6px; }
+.meta-key { color: #64748b; min-width: 32px; font-weight: 500; }
+
+.vscode-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0; padding: 8px 14px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.35); border-radius: 8px; color: #a78bfa; font-size: 12px; text-decoration: none; transition: all 0.15s; cursor: pointer; font-family: inherit; }
+.vscode-btn:hover { background: rgba(167,139,250,0.2); border-color: #a78bfa; color: #f1f5f9; }
+
+.section-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin: 14px 0 6px; font-weight: 600; }
+
+.symbol-list { display: flex; flex-direction: column; gap: 2px; }
+.symbol-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 6px; background: #111120; border: 1px solid transparent; }
+.symbol-item:hover { border-color: #1e1e2e; }
+.symbol-name { font-size: 12px; color: #a78bfa; font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace; }
+.symbol-right { display: flex; align-items: center; gap: 6px; }
+.symbol-line { font-size: 11px; color: #64748b; }
+.open-link { font-size: 10px; color: #64748b; text-decoration: none; padding: 2px 6px; border-radius: 3px; border: 1px solid #1e1e2e; transition: all 0.1s; white-space: nowrap; }
+.open-link:hover { color: #a78bfa; border-color: #a78bfa; }
+
+.import-list { display: flex; flex-direction: column; gap: 2px; }
+.import-item { font-size: 11px; color: #64748b; padding: 3px 8px; font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace; background: #0d0d18; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.conn-list { display: flex; flex-direction: column; gap: 3px; }
+.conn-item { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 6px; background: #111120; cursor: pointer; transition: background 0.1s; }
+.conn-item:hover { background: rgba(167,139,250,0.08); }
+.conn-type { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.conn-name { font-size: 12px; color: #cbd5e1; flex: 1; font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* TOOLTIP */
+#tooltip { position: fixed; background: #111120; border: 1px solid #1e1e2e; border-radius: 8px; padding: 8px 12px; font-size: 12px; pointer-events: none; z-index: 9999; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.6); max-width: 240px; }
+.tt-name { font-weight: 700; color: #f1f5f9; font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace; margin-bottom: 2px; word-break: break-all; }
+.tt-meta { color: #64748b; margin-top: 2px; }
+.tt-file { font-size: 11px; color: #64748b; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-dead { font-size: 10px; color: #f87171; margin-top: 5px; background: rgba(239,68,68,0.1); padding: 3px 6px; border-radius: 4px; }
+
+/* GRAPH */
+.node { cursor: pointer; }
+.node circle { stroke-width: 1.5; }
+.node text { font-size: 10px; pointer-events: none; }
+.node.dead circle { stroke-dasharray: 4,2; opacity: 0.4; }
+.node.dead text { opacity: 0.4; }
+.link { stroke-opacity: 0.4; }
+.hull { pointer-events: none; }
+.dimmed { opacity: 0.07 !important; }
+.highlighted circle { stroke: #fbbf24 !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px rgba(251,191,36,0.6)); }
+
+/* EMPTY STATE */
+#empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; color: #64748b; pointer-events: none; }
+#empty-state h2 { font-size: 20px; margin-bottom: 8px; color: #64748b; }
+#empty-state code { font-size: 13px; background: #111120; padding: 4px 10px; border-radius: 6px; color: #a78bfa; border: 1px solid #1e1e2e; }
+
+/* VIEW SWITCHER */
+#view-switcher { display: flex; background: #0d0d18; border: 1px solid #1e1e2e; border-radius: 8px; padding: 2px; gap: 2px; flex-shrink: 0; }
+.view-btn { padding: 4px 12px; border-radius: 6px; border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; font-family: inherit; }
+.view-btn.active { background: rgba(167,139,250,0.15); color: #a78bfa; }
+.view-btn:hover:not(.active) { color: #a78bfa; background: rgba(167,139,250,0.08); }
+
+/* ZOOM CONTROLS */
+#zoom-controls { position: absolute; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 4px; background: #111120; border: 1px solid #1e1e2e; border-radius: 8px; padding: 4px; z-index: 10; }
+.zoom-btn { width: 30px; height: 30px; border: none; background: transparent; color: #94a3b8; font-size: 16px; font-weight: 700; cursor: pointer; border-radius: 5px; display: flex; align-items: center; justify-content: center; transition: all 0.1s; }
+.zoom-btn:hover { background: rgba(167,139,250,0.12); color: #a78bfa; }
+#zoom-level { font-size: 10px; color: #64748b; text-align: center; padding: 2px; }
+
+/* MODULE VIEW — file boxes */
+.module-box { cursor: pointer; }
+.module-box-bg { stroke-width: 1.5; }
+.module-box.dead .module-box-bg { stroke-dasharray: 4,2; opacity: 0.5; }
+.module-box-title { fill: #f1f5f9; font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', 'Consolas', monospace; pointer-events: none; }
+.module-box-lang { fill: #64748b; font-size: 10px; pointer-events: none; }
+.module-box-divider { stroke: #1e1e2e; stroke-width: 1; }
+.module-symbol { font-size: 11px; font-family: 'JetBrains Mono', 'Consolas', monospace; cursor: pointer; }
+.module-symbol:hover { font-weight: 700; }
+.module-symbol-fn { fill: #6ee7b7; }
+.module-symbol-cls { fill: #93c5fd; }
+.module-symbol-line { fill: #64748b; font-size: 10px; pointer-events: none; }
+.module-more { fill: #64748b; font-size: 10px; font-style: italic; pointer-events: none; }
+.module-box.highlighted .module-box-bg { stroke: #fbbf24 !important; stroke-width: 3 !important; filter: drop-shadow(0 0 6px rgba(251,191,36,0.5)); }
+.module-box.dimmed { opacity: 0.15; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* LAYOUT: search wrap shrink */
+#search { width: 180px; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div id="logo">
+    <img src="https://lark.utoolslib.com/lark-ai-codebase-indexer-logo-dark.png" alt="lark">
+  </div>
+  <span id="project-name"></span>
+  <div id="search-wrap">
+    <span id="search-icon">⌕</span>
+    <input id="search" type="text" placeholder="Search symbols…" autocomplete="off" spellcheck="false">
+  </div>
+  <div id="view-switcher">
+    <button class="view-btn active" data-view="module">📦 Module</button>
+    <button class="view-btn" data-view="graph">🌐 Graph</button>
+  </div>
+  <div id="stats-display">
+    <span class="stat-item"><span class="stat-dot" style="background:#a78bfa"></span><span id="stat-files">–</span>&nbsp;files</span>
+    <span class="stat-item"><span class="stat-dot" style="background:#10b981"></span><span id="stat-fns">–</span>&nbsp;functions</span>
+    <span class="stat-item"><span class="stat-dot" style="background:#3b82f6"></span><span id="stat-cls">–</span>&nbsp;classes</span>
+  </div>
+</div>
+
+<div id="filterbar">
+  <span class="filter-label">edges</span>
+  <button class="filter-btn active" data-type="calls"><span class="dot" style="background:#ef4444"></span>calls</button>
+  <button class="filter-btn active" data-type="imports"><span class="dot" style="background:#f59e0b"></span>imports</button>
+  <button class="filter-btn active" data-type="contains"><span class="dot" style="background:#6b7280"></span>contains</button>
+  <button class="filter-btn active" data-type="inherits"><span class="dot" style="background:#8b5cf6"></span>inherits</button>
+  <div class="bar-divider"></div>
+  <div id="folder-legend"></div>
+</div>
+
+<div id="main">
+  <div id="canvas">
+    <svg id="svg"></svg>
+    <div id="empty-state" style="display:none">
+      <h2>No index found</h2>
+      <p style="margin-top:8px">Run <code>lark index</code> to build the graph</p>
+    </div>
+    <div id="zoom-controls">
+      <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
+      <div id="zoom-level">100%</div>
+      <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
+      <button class="zoom-btn" id="zoom-fit" title="Fit to view" style="font-size:13px">⛶</button>
+    </div>
+  </div>
+  <div id="panel" class="hidden">
+    <div id="panel-inner"></div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+const COLORS = {
+  node: { file: '#a78bfa', function: '#10b981', class: '#3b82f6' },
+  edge: { calls: '#ef4444', imports: '#f59e0b', contains: '#64748b', inherits: '#8b5cf6', tested_by: '#06b6d4' }
+};
+
+const FOLDER_PALETTE = [
+  '#a78bfa','#0891b2','#059669','#d97706',
+  '#dc2626','#db2777','#65a30d','#9333ea',
+  '#0284c7','#16a34a','#ca8a04','#b91c1c',
+];
+
+const ENTRY_PATTERNS = ['main.ts','index.ts','cli/index.ts','main.js','index.js','app.ts','app.js'];
+
+let graphData = { nodes: [], edges: [], files: [] };
+let summaries = {};
+let projectRoot = '';
+let activeFilters = new Set(['calls','imports','contains','inherits','tested_by']);
+let simulation;
+let deadNodes = new Set();
+let folderColorMap = new Map();
+let fileIndexMap = new Map();
+let viewMode = 'module';  // 'module' | 'graph'
+let currentZoom = null;   // d3.zoom behavior
+let svgRef = null;
+
+// ── Helpers ─────────────────────────────────────────────────
+function getFolderKey(filepath) {
+  if (!filepath) return '__root__';
+  const parts = filepath.split('/');
+  return parts.length > 1 ? parts.slice(0, Math.min(2, parts.length - 1)).join('/') : '__root__';
+}
+
+function getFolderColor(filepath) {
+  const key = getFolderKey(filepath);
+  if (!folderColorMap.has(key)) {
+    folderColorMap.set(key, FOLDER_PALETTE[folderColorMap.size % FOLDER_PALETTE.length]);
+  }
+  return folderColorMap.get(key);
+}
+
+function isDeadNode(node) {
+  if (!deadNodes.has(node.id)) return false;
+  if (node.type === 'file') return !ENTRY_PATTERNS.some(p => node.file?.endsWith(p));
+  return node.type === 'function';
+}
+
+function vsCodeUrl(filepath, line) {
+  if (!filepath || !projectRoot) return null;
+  const root = projectRoot.replace(/\\/g, '/').replace(/\/$/, '');
+  const rel  = filepath.replace(/\\/g, '/').replace(/^\//, '');
+  return `vscode://file/${root}/${rel}${line ? ':' + line : ''}`;
+}
+
+function getNodeRadius(node) {
+  const base = node.type === 'file' ? 10 : node.type === 'class' ? 7 : 5;
+  const inc  = graphData.edges.filter(e => e.to === node.id && activeFilters.has(e.type)).length;
+  return base + Math.min(inc * 1.5, 12);
+}
+
+// ── Data loading ─────────────────────────────────────────────
+async function loadData() {
+  try {
+    const [gRes, mRes, sRes, rRes] = await Promise.all([
+      fetch('/api/graph'), fetch('/api/meta'), fetch('/api/summaries'), fetch('/api/root')
+    ]);
+    graphData  = await gRes.json();
+    const meta = await mRes.json();
+    summaries  = await sRes.json();
+    const rd   = await rRes.json();
+    projectRoot = rd.root ?? '';
+
+    fileIndexMap.clear();
+    (graphData.files ?? []).forEach(f => fileIndexMap.set(f.file, f));
+
+    document.getElementById('stat-files').textContent = meta.fileCount ?? 0;
+    document.getElementById('stat-fns').textContent   = meta.functionCount ?? 0;
+    document.getElementById('stat-cls').textContent   = meta.classCount ?? 0;
+
+    if (projectRoot) {
+      const parts = projectRoot.replace(/\\/g, '/').split('/');
+      document.getElementById('project-name').textContent = parts[parts.length - 1];
+    }
+  } catch {
+    document.getElementById('stat-files').textContent = '?';
+  }
+
+  if (!graphData.nodes?.length) {
+    document.getElementById('empty-state').style.display = 'block';
+  }
+  render();
+}
+
+// ── Dead code detection ──────────────────────────────────────
+function computeDeadNodes() {
+  const hasIncoming = new Set(graphData.edges.map(e => e.to));
+  deadNodes.clear();
+  graphData.nodes.forEach(n => { if (!hasIncoming.has(n.id)) deadNodes.add(n.id); });
+}
+
+// ── Folder legend ────────────────────────────────────────────
+function buildFolderLegend() {
+  folderColorMap.clear();
+  graphData.nodes.forEach(n => { if (n.file) getFolderColor(n.file); });
+
+  const legend = document.getElementById('folder-legend');
+  legend.innerHTML = '';
+  if (!folderColorMap.size) return;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'filter-label';
+  lbl.textContent = 'folders';
+  legend.appendChild(lbl);
+
+  folderColorMap.forEach((color, folder) => {
+    if (folder === '__root__') return;
+    const chip = document.createElement('span');
+    chip.className = 'folder-chip';
+    chip.innerHTML = `<span class="folder-swatch" style="background:${color}"></span>${folder}`;
+    legend.appendChild(chip);
+  });
+}
+
+// ── Render ───────────────────────────────────────────────────
+function render() {
+  computeDeadNodes();
+  buildFolderLegend();
+  if (viewMode === 'module') renderModule();
+  else renderGraph();
+}
+
+function setupZoom(svgD3, container) {
+  const zoomBeh = d3.zoom().scaleExtent([0.05, 6]).on('zoom', e => {
+    container.attr('transform', e.transform);
+    document.getElementById('zoom-level').textContent = Math.round(e.transform.k * 100) + '%';
+  });
+  svgD3.call(zoomBeh);
+  currentZoom = zoomBeh;
+  svgRef = svgD3;
+  return zoomBeh;
+}
+
+function renderGraph() {
+  const svgEl = document.getElementById('svg');
+  svgEl.innerHTML = '';
+
+  const w = svgEl.clientWidth  || window.innerWidth;
+  const h = svgEl.clientHeight || (window.innerHeight - 100);
+
+  const svgD3 = d3.select('#svg').attr('width', w).attr('height', h);
+  const container = svgD3.append('g');
+  setupZoom(svgD3, container);
+
+  const visibleEdges = graphData.edges.filter(e => activeFilters.has(e.type));
+  const nodes = graphData.nodes.map(n => ({ ...n }));
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const edges = visibleEdges
+    .map(e => ({ ...e, source: e.from, target: e.to }))
+    .filter(e => nodeMap.has(e.from) && nodeMap.has(e.to));
+
+  // Arrowhead markers
+  const defs = svgD3.append('defs');
+  Object.entries(COLORS.edge).forEach(([type, color]) => {
+    defs.append('marker')
+      .attr('id', `arrow-${type}`).attr('viewBox', '0 -4 8 8')
+      .attr('refX', 20).attr('refY', 0)
+      .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-4L8,0L0,4').attr('fill', color);
+  });
+
+  const hullGroup = container.append('g').attr('class', 'hulls');
+  const linkGroup = container.append('g').attr('class', 'links');
+  const nodeGroup = container.append('g').attr('class', 'nodes');
+
+  // Folder convex hulls (file nodes only, 2+ per folder)
+  const folderGroups = new Map();
+  nodes.filter(n => n.type === 'file' && n.file).forEach(n => {
+    const key = getFolderKey(n.file);
+    if (!folderGroups.has(key)) folderGroups.set(key, []);
+    folderGroups.get(key).push(n);
+  });
+  const hullData = [];
+  folderGroups.forEach((gNodes, folder) => {
+    if (gNodes.length >= 2) hullData.push({ folder, nodes: gNodes });
+  });
+
+  const hulls = hullGroup.selectAll('.hull')
+    .data(hullData).enter().append('path')
+    .attr('class', 'hull')
+    .attr('fill',         d => folderColorMap.get(d.folder) ?? '#888')
+    .attr('fill-opacity', 0.06)
+    .attr('stroke',       d => folderColorMap.get(d.folder) ?? '#888')
+    .attr('stroke-opacity', 0.22)
+    .attr('stroke-width', 1.5)
+    .attr('stroke-dasharray', '5,4');
+
+  // Links
+  const link = linkGroup.selectAll('.link')
+    .data(edges).enter().append('line')
+    .attr('class', 'link')
+    .attr('stroke', d => COLORS.edge[d.type] ?? '#555')
+    .attr('stroke-width', 1)
+    .attr('marker-end', d => `url(#arrow-${d.type})`);
+
+  // Simulation
+  simulation = d3.forceSimulation(nodes)
+    .force('link',      d3.forceLink(edges).id(d => d.id).distance(90))
+    .force('charge',    d3.forceManyBody().strength(-280))
+    .force('center',    d3.forceCenter(w / 2, h / 2))
+    .force('collision', d3.forceCollide().radius(d => getNodeRadius(d) + 6));
+
+  // Node groups
+  const node = nodeGroup.selectAll('.node')
+    .data(nodes).enter().append('g')
+    .attr('class', d => 'node' + (isDeadNode(d) ? ' dead' : ''))
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    )
+    .on('click',     (e, d) => { e.stopPropagation(); showPanel(d, edges, nodes); })
+    .on('mouseover', (e, d) => showTooltip(e, d))
+    .on('mousemove', (e)    => moveTooltip(e))
+    .on('mouseout',  ()     => hideTooltip());
+
+  node.append('circle')
+    .attr('r',            d => getNodeRadius(d))
+    .attr('fill',         d => COLORS.node[d.type] ?? '#888')
+    .attr('stroke',       d => isDeadNode(d) ? '#ef4444' : getFolderColor(d.file ?? ''))
+    .attr('stroke-width', 1.5);
+
+  node.append('text')
+    .attr('dy', d => getNodeRadius(d) + 11)
+    .attr('text-anchor', 'middle')
+    .attr('fill', d => isDeadNode(d) ? '#5a2020' : '#94a3b8')
+    .text(d => d.name.length > 18 ? d.name.slice(0, 17) + '…' : d.name);
+
+  svgD3.on('click', () => { hidePanel(); });
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+
+    hulls.attr('d', d => {
+      const pts = d.nodes.map(n => [n.x ?? 0, n.y ?? 0]);
+      if (pts.length < 3) return null;
+      const hull = d3.polygonHull(pts);
+      if (!hull || hull.length < 3) return null;
+      const cx = d3.mean(hull, p => p[0]);
+      const cy = d3.mean(hull, p => p[1]);
+      const exp = hull.map(p => [cx + (p[0] - cx) * 1.4, cy + (p[1] - cy) * 1.4]);
+      return 'M' + exp.map(p => p.join(',')).join('L') + 'Z';
+    });
+  });
+
+  window._nodeSelection = node;
+  window._nodeMap = nodeMap;
+  window._edges = edges;
+  window._nodes = nodes;
+}
+
+// ── MODULE VIEW ──────────────────────────────────────────────
+// Files as containers, functions/classes listed inside each box.
+// Edges are aggregated to file → file level.
+function renderModule() {
+  const svgEl = document.getElementById('svg');
+  svgEl.innerHTML = '';
+
+  const w = svgEl.clientWidth  || window.innerWidth;
+  const h = svgEl.clientHeight || (window.innerHeight - 100);
+
+  const svgD3 = d3.select('#svg').attr('width', w).attr('height', h);
+  const container = svgD3.append('g');
+  setupZoom(svgD3, container);
+
+  // Build file-level nodes
+  const fileNodes = graphData.nodes
+    .filter(n => n.type === 'file')
+    .map(n => {
+      const fileData = fileIndexMap.get(n.file);
+      const fnCount  = fileData?.functions?.length ?? 0;
+      const clsCount = fileData?.classes?.length ?? 0;
+      const totalSym = fnCount + clsCount;
+      const visibleSym = Math.min(totalSym, 7);
+      const width  = 200;
+      const height = 36 + (visibleSym * 16) + (totalSym > 7 ? 14 : 0);
+      return { ...n, width, height, fileData, fnCount, clsCount, totalSym, visibleSym };
+    });
+
+  const fileById = new Map(fileNodes.map(n => [n.id, n]));
+  const fileByPath = new Map(fileNodes.map(n => [n.file, n]));
+
+  // Aggregate edges → file-level
+  // calls (fn→fn) becomes (file→file); contains (file→fn) is dropped
+  const aggKey = (from, to, type) => `${from}|${to}|${type}`;
+  const aggEdges = new Map();
+  for (const e of graphData.edges) {
+    if (!activeFilters.has(e.type)) continue;
+    if (e.type === 'contains') continue; // visual containment handles this
+
+    const fromNode = graphData.nodes.find(n => n.id === e.from);
+    const toNode   = graphData.nodes.find(n => n.id === e.to);
+    const fromFile = fromNode?.file;
+    const toFile   = toNode?.file;
+    if (!fromFile || !toFile || fromFile === toFile) continue;
+
+    const k = aggKey(fromFile, toFile, e.type);
+    if (!aggEdges.has(k)) {
+      aggEdges.set(k, { source: fromFile, target: toFile, type: e.type, count: 1 });
+    } else {
+      aggEdges.get(k).count++;
+    }
+  }
+
+  // Map source/target paths → file nodes (d3 simulation needs node references)
+  const edges = [];
+  aggEdges.forEach(e => {
+    const sn = fileByPath.get(e.source);
+    const tn = fileByPath.get(e.target);
+    if (sn && tn) edges.push({ source: sn.id, target: tn.id, type: e.type, count: e.count });
+  });
+
+  // Arrowhead markers
+  const defs = svgD3.append('defs');
+  Object.entries(COLORS.edge).forEach(([type, color]) => {
+    defs.append('marker')
+      .attr('id', `arrow-${type}`).attr('viewBox', '0 -4 8 8')
+      .attr('refX', 12).attr('refY', 0)
+      .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-4L8,0L0,4').attr('fill', color);
+  });
+
+  const hullGroup = container.append('g').attr('class', 'hulls');
+  const linkGroup = container.append('g').attr('class', 'links');
+  const boxGroup  = container.append('g').attr('class', 'boxes');
+
+  // Folder hulls
+  const folderGroups = new Map();
+  fileNodes.forEach(n => {
+    const key = getFolderKey(n.file);
+    if (!folderGroups.has(key)) folderGroups.set(key, []);
+    folderGroups.get(key).push(n);
+  });
+  const hullData = [];
+  folderGroups.forEach((gNodes, folder) => {
+    if (gNodes.length >= 2) hullData.push({ folder, nodes: gNodes });
+  });
+
+  const hulls = hullGroup.selectAll('.hull')
+    .data(hullData).enter().append('path')
+    .attr('class', 'hull')
+    .attr('fill',         d => folderColorMap.get(d.folder) ?? '#888')
+    .attr('fill-opacity', 0.05)
+    .attr('stroke',       d => folderColorMap.get(d.folder) ?? '#888')
+    .attr('stroke-opacity', 0.3)
+    .attr('stroke-width', 1.5)
+    .attr('stroke-dasharray', '6,4');
+
+  // Folder cluster force
+  const folderKeys = Array.from(new Set(fileNodes.map(n => getFolderKey(n.file))));
+  const folderCenters = new Map();
+  const cx = w / 2, cy = h / 2;
+  const ring = Math.min(w, h) * 0.32;
+  folderKeys.forEach((folder, i) => {
+    if (folderKeys.length === 1) folderCenters.set(folder, { x: cx, y: cy });
+    else {
+      const a = (i / folderKeys.length) * 2 * Math.PI - Math.PI / 2;
+      folderCenters.set(folder, { x: cx + Math.cos(a) * ring, y: cy + Math.sin(a) * ring });
+    }
+  });
+
+  function clusterForce(alpha) {
+    const k = alpha * 0.4;
+    for (const n of fileNodes) {
+      const c = folderCenters.get(getFolderKey(n.file));
+      if (!c) continue;
+      n.vx = (n.vx ?? 0) + (c.x - n.x) * k;
+      n.vy = (n.vy ?? 0) + (c.y - n.y) * k;
+    }
+  }
+
+  // Edges (curved if multiple between same pair)
+  const link = linkGroup.selectAll('.modlink')
+    .data(edges).enter().append('line')
+    .attr('class', 'modlink')
+    .attr('stroke', d => COLORS.edge[d.type] ?? '#555')
+    .attr('stroke-width', d => Math.min(1 + Math.log2(d.count + 1), 4))
+    .attr('stroke-opacity', 0.55)
+    .attr('marker-end', d => `url(#arrow-${d.type})`);
+
+  // Force simulation
+  simulation = d3.forceSimulation(fileNodes)
+    .force('link',      d3.forceLink(edges).id(d => d.id).distance(d => 60 + (d.source.width + d.target.width) / 2).strength(0.3))
+    .force('charge',    d3.forceManyBody().strength(-600))
+    .force('cluster',   clusterForce)
+    .force('collision', d3.forceCollide().radius(d => Math.max(d.width, d.height) * 0.6));
+
+  // File boxes
+  const box = boxGroup.selectAll('.module-box')
+    .data(fileNodes).enter().append('g')
+    .attr('class', d => 'module-box' + (isDeadNode(d) ? ' dead' : ''))
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    )
+    .on('click',     (e, d) => { e.stopPropagation(); showPanel(d, graphData.edges, graphData.nodes); })
+    .on('mouseover', (e, d) => showTooltip(e, d))
+    .on('mousemove', (e)    => moveTooltip(e))
+    .on('mouseout',  ()     => hideTooltip());
+
+  // Box background
+  box.append('rect')
+    .attr('class', 'module-box-bg')
+    .attr('x',      d => -d.width / 2)
+    .attr('y',      d => -d.height / 2)
+    .attr('width',  d => d.width)
+    .attr('height', d => d.height)
+    .attr('rx', 8)
+    .attr('fill', '#111120')
+    .attr('stroke', d => isDeadNode(d) ? '#ef4444' : getFolderColor(d.file));
+
+  // File header (name + lang)
+  box.append('text')
+    .attr('class', 'module-box-title')
+    .attr('x', d => -d.width / 2 + 12)
+    .attr('y', d => -d.height / 2 + 18)
+    .text(d => {
+      const name = d.name;
+      return name.length > 22 ? name.slice(0, 21) + '…' : name;
+    });
+
+  box.append('text')
+    .attr('class', 'module-box-lang')
+    .attr('text-anchor', 'end')
+    .attr('x', d => d.width / 2 - 10)
+    .attr('y', d => -d.height / 2 + 18)
+    .text(d => d.lang ?? '');
+
+  // Divider
+  box.append('line')
+    .attr('class', 'module-box-divider')
+    .attr('x1', d => -d.width / 2 + 8).attr('y1', d => -d.height / 2 + 26)
+    .attr('x2', d => d.width / 2 - 8).attr('y2', d => -d.height / 2 + 26);
+
+  // Symbol lines (functions + classes)
+  box.each(function(d) {
+    if (!d.fileData) return;
+    const symbols = [
+      ...((d.fileData.functions ?? []).map(s => ({ ...s, kind: 'fn' }))),
+      ...((d.fileData.classes ?? []).map(s => ({ ...s, kind: 'cls' }))),
+    ].slice(0, d.visibleSym);
+
+    const g = d3.select(this);
+    symbols.forEach((s, i) => {
+      const y = -d.height / 2 + 42 + i * 16;
+      g.append('text')
+        .attr('class', `module-symbol module-symbol-${s.kind}`)
+        .attr('x', -d.width / 2 + 14)
+        .attr('y', y)
+        .text(`${s.kind === 'fn' ? '⚡' : '◆'} ${s.name.length > 18 ? s.name.slice(0,17) + '…' : s.name}`)
+        .on('click', (e) => {
+          e.stopPropagation();
+          const symbolNode = graphData.nodes.find(n => n.file === d.file && n.name === s.name && n.type === (s.kind === 'fn' ? 'function' : 'class'));
+          if (symbolNode) showPanel(symbolNode, graphData.edges, graphData.nodes);
+        });
+      g.append('text')
+        .attr('class', 'module-symbol-line')
+        .attr('text-anchor', 'end')
+        .attr('x', d.width / 2 - 10)
+        .attr('y', y)
+        .text(`:${s.line ?? '?'}`);
+    });
+
+    if (d.totalSym > d.visibleSym) {
+      g.append('text')
+        .attr('class', 'module-more')
+        .attr('x', -d.width / 2 + 14)
+        .attr('y', -d.height / 2 + 42 + d.visibleSym * 16)
+        .text(`+ ${d.totalSym - d.visibleSym} more`);
+    }
+  });
+
+  svgD3.on('click', () => { hidePanel(); });
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    box.attr('transform', d => `translate(${d.x},${d.y})`);
+
+    hulls.attr('d', d => {
+      // Build hull around box corners (not just centers) for accurate envelope
+      const pts = [];
+      d.nodes.forEach(n => {
+        const x = n.x ?? 0, y = n.y ?? 0;
+        pts.push([x - n.width / 2, y - n.height / 2]);
+        pts.push([x + n.width / 2, y - n.height / 2]);
+        pts.push([x + n.width / 2, y + n.height / 2]);
+        pts.push([x - n.width / 2, y + n.height / 2]);
+      });
+      if (pts.length < 3) return null;
+      const hull = d3.polygonHull(pts);
+      if (!hull || hull.length < 3) return null;
+      const mx = d3.mean(hull, p => p[0]);
+      const my = d3.mean(hull, p => p[1]);
+      const exp = hull.map(p => [mx + (p[0] - mx) * 1.08 + (p[0] > mx ? 14 : -14), my + (p[1] - my) * 1.08 + (p[1] > my ? 14 : -14)]);
+      return 'M' + exp.map(p => p.join(',')).join('L') + 'Z';
+    });
+  });
+
+  window._nodeSelection = box;
+  window._nodeMap = fileById;
+  window._edges = graphData.edges;
+  window._nodes = graphData.nodes;
+}
+
+// ── Tooltip ──────────────────────────────────────────────────
+function showTooltip(e, d) {
+  const dead = isDeadNode(d);
+  document.getElementById('tooltip').innerHTML = `
+    <div class="tt-name">${d.name}</div>
+    <div class="tt-meta">${d.type}${d.lang ? ' · ' + d.lang : ''}</div>
+    ${d.file ? `<div class="tt-file">${d.file}${d.line ? ':' + d.line : ''}</div>` : ''}
+    ${dead ? `<div class="tt-dead">⚠ no references — possible dead code</div>` : ''}
+  `;
+  document.getElementById('tooltip').style.display = 'block';
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tip = document.getElementById('tooltip');
+  const x = e.clientX + 14;
+  const y = e.clientY - 10;
+  tip.style.left = (x + tip.offsetWidth > window.innerWidth ? e.clientX - tip.offsetWidth - 14 : x) + 'px';
+  tip.style.top  = Math.max(4, y) + 'px';
+}
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// ── Side panel ───────────────────────────────────────────────
+function showPanel(nodeData, edges, nodes) {
+  const panel = document.getElementById('panel');
+  panel.classList.remove('hidden');
+
+  const dead     = isDeadNode(nodeData);
+  const summary  = summaries[nodeData.file];
+  const fileData = nodeData.type === 'file' ? fileIndexMap.get(nodeData.file) : null;
+  const vsUrl    = vsCodeUrl(nodeData.file, nodeData.type !== 'file' ? nodeData.line : null);
+
+  let h = `<div class="panel-name">${nodeData.name}</div>`;
+  h    += `<div class="badge-row">
+    <span class="badge badge-${nodeData.type}">${nodeData.type}</span>
+    ${dead ? '<span class="badge badge-dead">⚠ dead code</span>' : ''}
+  </div>`;
+
+  if (summary) {
+    h += `<div class="panel-summary">${summary}</div>`;
+  }
+
+  if (nodeData.file && nodeData.type !== 'file') {
+    h += `<div class="meta-row"><span class="meta-key">file</span>${nodeData.file}</div>`;
+  }
+  if (nodeData.line) {
+    h += `<div class="meta-row"><span class="meta-key">line</span>${nodeData.line}</div>`;
+  }
+  if (nodeData.lang) {
+    h += `<div class="meta-row"><span class="meta-key">lang</span>${nodeData.lang}</div>`;
+  }
+
+  if (vsUrl) {
+    h += `<a class="vscode-btn" href="${vsUrl}">↗ Open in VS Code</a>`;
+  }
+
+  // File details: functions, classes, imports
+  if (fileData) {
+    if (fileData.functions?.length) {
+      h += `<div class="section-title">Functions (${fileData.functions.length})</div><div class="symbol-list">`;
+      fileData.functions.forEach(fn => {
+        const url = vsCodeUrl(nodeData.file, fn.line);
+        h += `<div class="symbol-item">
+          <span class="symbol-name">${fn.name}</span>
+          <span class="symbol-right">
+            <span class="symbol-line">:${fn.line ?? '?'}</span>
+            ${url ? `<a class="open-link" href="${url}">open</a>` : ''}
+          </span>
+        </div>`;
+      });
+      h += `</div>`;
+    }
+    if (fileData.classes?.length) {
+      h += `<div class="section-title">Classes (${fileData.classes.length})</div><div class="symbol-list">`;
+      fileData.classes.forEach(cls => {
+        const url = vsCodeUrl(nodeData.file, cls.line);
+        h += `<div class="symbol-item">
+          <span class="symbol-name">${cls.name}</span>
+          <span class="symbol-right">
+            <span class="symbol-line">:${cls.line ?? '?'}</span>
+            ${url ? `<a class="open-link" href="${url}">open</a>` : ''}
+          </span>
+        </div>`;
+      });
+      h += `</div>`;
+    }
+    if (fileData.imports?.length) {
+      h += `<div class="section-title">Imports (${fileData.imports.length})</div><div class="import-list">`;
+      fileData.imports.slice(0, 12).forEach(imp => {
+        h += `<div class="import-item">${imp}</div>`;
+      });
+      if (fileData.imports.length > 12) {
+        h += `<div class="import-item" style="color:#4a5568">+${fileData.imports.length - 12} more…</div>`;
+      }
+      h += `</div>`;
+    }
+  }
+
+  // Connections
+  const incoming = edges.filter(e => e.to   === nodeData.id);
+  const outgoing = edges.filter(e => e.from === nodeData.id);
+
+  if (incoming.length) {
+    h += `<div class="section-title">Referenced by (${incoming.length})</div><div class="conn-list">`;
+    incoming.forEach(e => {
+      const other = window._nodeMap?.get(e.from);
+      if (!other) return;
+      const c = COLORS.edge[e.type] ?? '#888';
+      h += `<div class="conn-item" onclick="focusNode('${other.id}')">
+        <span class="conn-type" style="background:${c}22;color:${c};border:1px solid ${c}44">${e.type}</span>
+        <span class="conn-name">${other.name}</span>
+      </div>`;
+    });
+    h += `</div>`;
+  }
+
+  if (outgoing.length) {
+    h += `<div class="section-title">References (${outgoing.length})</div><div class="conn-list">`;
+    outgoing.forEach(e => {
+      const other = window._nodeMap?.get(e.to);
+      if (!other) return;
+      const c = COLORS.edge[e.type] ?? '#888';
+      h += `<div class="conn-item" onclick="focusNode('${other.id}')">
+        <span class="conn-type" style="background:${c}22;color:${c};border:1px solid ${c}44">${e.type}</span>
+        <span class="conn-name">${other.name}</span>
+      </div>`;
+    });
+    h += `</div>`;
+  }
+
+  document.getElementById('panel-inner').innerHTML = h;
+}
+
+function hidePanel() {
+  document.getElementById('panel').classList.add('hidden');
+}
+
+function focusNode(nodeId) {
+  if (!window._nodeSelection) return;
+  window._nodeSelection
+    .classed('highlighted', d => d.id === nodeId)
+    .classed('dimmed', d => d.id !== nodeId);
+  setTimeout(() => {
+    if (window._nodeSelection) window._nodeSelection.classed('dimmed', false);
+  }, 1500);
+  const n = window._nodeMap?.get(nodeId);
+  if (n) showPanel(n, window._edges ?? [], window._nodes ?? []);
+}
+
+// ── Filter buttons ───────────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (activeFilters.has(type)) { activeFilters.delete(type); btn.classList.remove('active'); }
+    else                         { activeFilters.add(type);    btn.classList.add('active');    }
+    render();
+  });
+});
+
+// ── View switcher ────────────────────────────────────────────
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.view;
+    if (v === viewMode) return;
+    viewMode = v;
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    render();
+  });
+});
+
+// ── Zoom controls ────────────────────────────────────────────
+function zoomBy(factor) {
+  if (!currentZoom || !svgRef) return;
+  svgRef.transition().duration(200).call(currentZoom.scaleBy, factor);
+}
+function zoomFit() {
+  if (!currentZoom || !svgRef) return;
+  svgRef.transition().duration(300).call(currentZoom.transform, d3.zoomIdentity);
+}
+document.getElementById('zoom-in').addEventListener('click', () => zoomBy(1.4));
+document.getElementById('zoom-out').addEventListener('click', () => zoomBy(1 / 1.4));
+document.getElementById('zoom-fit').addEventListener('click', zoomFit);
+
+// ── Search ───────────────────────────────────────────────────
+function matchesSearch(node, q) {
+  if (!q) return true;
+  if (node.name.toLowerCase().includes(q)) return true;
+  // Also match symbols inside the file (matters in Module view)
+  const fileData = fileIndexMap.get(node.file);
+  if (fileData) {
+    if ((fileData.functions ?? []).some(f => f.name.toLowerCase().includes(q))) return true;
+    if ((fileData.classes   ?? []).some(c => c.name.toLowerCase().includes(q))) return true;
+  }
+  return false;
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  if (!window._nodeSelection) return;
+  if (!q) {
+    window._nodeSelection.classed('dimmed', false).classed('highlighted', false);
+    return;
+  }
+  window._nodeSelection
+    .classed('highlighted', d => matchesSearch(d, q))
+    .classed('dimmed',      d => !matchesSearch(d, q));
+});
+
+// ── Watch polling ────────────────────────────────────────────
+let lastEdgeCount = 0;
+setInterval(async () => {
+  try {
+    const res  = await fetch('/api/graph');
+    const data = await res.json();
+    if (data.edges.length !== lastEdgeCount) {
+      lastEdgeCount = data.edges.length;
+      graphData = data;
+      fileIndexMap.clear();
+      (graphData.files ?? []).forEach(f => fileIndexMap.set(f.file, f));
+      render();
+    }
+  } catch {}
+}, 2000);
+
+loadData();
+</script>
+</body>
+</html>

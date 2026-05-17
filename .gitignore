@@ -1,0 +1,10 @@
+node_modules
+dist
+.lark
+.claude
+.code-graph/
+*.tgz
+*.log
+.env
+.env.*
+.mcp.json

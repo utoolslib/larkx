@@ -1,0 +1,75 @@
+{
+  "name": "larkx",
+  "version": "0.1.0",
+  "description": "Code intelligence graph for AI agents, reduce token usage by 60-85%",
+  "type": "module",
+  "bin": {
+    "larkx": "./bin/larkx.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "public",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "author": "Sumit Patel <sumit.lk.patel@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/utoolslib/lark.git"
+  },
+  "homepage": "https://lark.utoolslib.com/",
+  "bugs": {
+    "url": "https://github.com/utoolslib/lark/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "larkx",
+    "lark",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "gemini",
+    "codex",
+    "ai-agent",
+    "mcp",
+    "mcp-server",
+    "code-intelligence",
+    "code-graph",
+    "codebase-indexer",
+    "token-optimization",
+    "context-window",
+    "ast",
+    "tree-sitter",
+    "developer-tools"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "@inquirer/prompts": "^8.4.3",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "chalk": "^5.3.0",
+    "chokidar": "^3.6.0",
+    "commander": "^12.0.0",
+    "express": "^4.19.0",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-javascript": "^0.21.3",
+    "tree-sitter-typescript": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}
