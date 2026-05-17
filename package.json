@@ -1,10 +1,10 @@
 {
   "name": "larkx",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot. Pre-index your project into a compact graph — cut context token usage by up to 87%.",
   "type": "module",
   "bin": {
-    "larkx": "./bin/larkx.js"
+    "larkx": "bin/larkx.js"
   },
   "scripts": {
     "build": "tsc",
@@ -23,7 +23,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/utoolslib/larkx.git"
+    "url": "git+https://github.com/utoolslib/larkx.git"
   },
   "homepage": "https://larkx.utoolslib.com/",
   "bugs": {
