@@ -3,7 +3,7 @@ import path from 'path';
 
 const IGNORE_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', '.next', 'out', 'coverage',
-  '.lark', '.turbo', '.cache', '__pycache__',
+  '.larkx', '.turbo', '.cache', '__pycache__',
 ]);
 
 const IGNORE_PATTERNS = [

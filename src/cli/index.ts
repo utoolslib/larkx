@@ -405,7 +405,7 @@ type AgentConfig = {
 };
 
 const CLI_INSTRUCTION = 'Before working on any task, read the file `.larkx/context.md` — it contains a compact map of all files, functions, classes, and imports in this project. Do not open source files until you have read it. If the file does not exist, run `larkx index` first.';
-const MCP_INSTRUCTION = 'Before working on any task, always use larkx MCP tools first: get_project_index for a full overview, search_symbol to locate functions, get_file_summary before reading a file, get_impact before changing a file, get_call_chain to trace logic, get_dead_code to find unused code. Only fall back to reading source files directly if MCP returns no result.';
+const MCP_INSTRUCTION = 'Before working on any task, always use larkx MCP tools first: get_project_index for a full overview, search_symbol to locate functions, get_file_summary before reading a file, get_impact before changing a file, get_call_chain to trace logic, get_dead_code to find unused code. If MCP returns no result, read `.larkx/context.md` as a fallback overview. Only read individual source files directly if neither MCP nor context.md is available.';
 
 function getInstruction(mcpEnabled: boolean): string {
   return mcpEnabled ? MCP_INSTRUCTION : CLI_INSTRUCTION;
@@ -415,7 +415,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
   claude: {
     file: 'CLAUDE.md',
     label: 'Claude Code',
-    content: (mcpEnabled) => `# Project Intelligence\n\nThis project uses [larkx](https://github.com/utoolslib/lark) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
+    content: (mcpEnabled) => `# Project Intelligence\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
     extraSetup: (projectRoot, mcpEnabled) => {
       try {
         const claudeDir = path.join(projectRoot, '.claude');
@@ -458,7 +458,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
   copilot: {
     file: '.github/copilot-instructions.md',
     label: 'GitHub Copilot',
-    content: (mcpEnabled) => `# Copilot Instructions\n\nThis project uses [larkx](https://github.com/utoolslib/lark) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
+    content: (mcpEnabled) => `# Copilot Instructions\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
   },
   cursor: {
     file: '.cursorrules',
@@ -468,12 +468,12 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
   codex: {
     file: 'AGENTS.md',
     label: 'OpenAI Codex',
-    content: (mcpEnabled) => `# Agent Instructions\n\nThis project uses [larkx](https://github.com/utoolslib/lark) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
+    content: (mcpEnabled) => `# Agent Instructions\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
   },
   gemini: {
     file: 'GEMINI.md',
     label: 'Gemini CLI',
-    content: (mcpEnabled) => `# Project Intelligence\n\nThis project uses [larkx](https://github.com/utoolslib/lark) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
+    content: (mcpEnabled) => `# Project Intelligence\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
   },
 };
 
@@ -488,7 +488,7 @@ async function checkClaudeCLI(): Promise<boolean> {
 }
 
 function saveAIConfig(projectRoot: string, ai: { provider: 'local-claude' | 'anthropic'; apiKey?: string }): void {
-  const configPath = path.join(projectRoot, '.lark', 'config.json');
+  const configPath = path.join(projectRoot, '.larkx', 'config.json');
   try {
     const existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     existing.ai = ai;
@@ -521,7 +521,7 @@ async function promptAI(projectRoot: string): Promise<void> {
       if (!available) {
         console.log(chalk.yellow('  ⚠ claude CLI not found in PATH.'));
         console.log(chalk.dim('    Install Claude Code: https://claude.ai/download'));
-        console.log(chalk.dim('    Then re-run: lark init'));
+        console.log(chalk.dim('    Then re-run: larkx init'));
         return;
       }
       saveAIConfig(projectRoot, { provider: 'local-claude' });

@@ -48,7 +48,7 @@ export async function generateSummaries(
   if (aiConfig.provider === 'anthropic') {
     const apiKey = aiConfig.apiKey ?? process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.log('⚠ Anthropic API key not found. Run: lark init');
+      console.log('⚠ Anthropic API key not found. Run: larkx init');
       return;
     }
     client = new Anthropic({ apiKey });

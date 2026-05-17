@@ -1,7 +1,7 @@
 {
   "name": "larkx",
   "version": "0.1.0",
-  "description": "Code intelligence graph for AI agents, reduce token usage by 60-85%",
+  "description": "AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot. Pre-index your project into a compact graph — cut context token usage by up to 87%.",
   "type": "module",
   "bin": {
     "larkx": "./bin/larkx.js"
@@ -23,11 +23,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/utoolslib/lark.git"
+    "url": "https://github.com/utoolslib/larkx.git"
   },
-  "homepage": "https://lark.utoolslib.com/",
+  "homepage": "https://larkx.utoolslib.com/",
   "bugs": {
-    "url": "https://github.com/utoolslib/lark/issues"
+    "url": "https://github.com/utoolslib/larkx/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -37,7 +37,6 @@
   },
   "keywords": [
     "larkx",
-    "lark",
     "claude-code",
     "cursor",
     "copilot",
@@ -46,6 +45,7 @@
     "ai-agent",
     "mcp",
     "mcp-server",
+    "model-context-protocol",
     "code-intelligence",
     "code-graph",
     "codebase-indexer",
@@ -53,7 +53,10 @@
     "context-window",
     "ast",
     "tree-sitter",
-    "developer-tools"
+    "developer-tools",
+    "llm",
+    "ai-coding",
+    "static-analysis"
   ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",

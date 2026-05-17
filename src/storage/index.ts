@@ -58,11 +58,16 @@ export function initStorage(projectRoot: string): void {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const dataFiles = ['index.json', 'graph.json', 'summaries.json', 'meta.json'];
-  for (const f of dataFiles) {
+  const dataDefaults: Record<string, object> = {
+    'index.json': [],
+    'graph.json': { nodes: [], edges: [] },
+    'summaries.json': {},
+    'meta.json': {},
+  };
+  for (const [f, defaultVal] of Object.entries(dataDefaults)) {
     const fp = path.join(dir, f);
     if (!fs.existsSync(fp)) {
-      fs.writeFileSync(fp, JSON.stringify({}, null, 2), 'utf-8');
+      fs.writeFileSync(fp, JSON.stringify(defaultVal, null, 2), 'utf-8');
     }
   }
 

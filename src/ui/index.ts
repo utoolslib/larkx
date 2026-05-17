@@ -60,7 +60,7 @@ export async function startUIServer(projectRoot: string, port: number): Promise<
   });
 
   app.get('/api/meta', (_req, res) => {
-    const metaPath = path.join(projectRoot, '.lark', 'meta.json');
+    const metaPath = path.join(projectRoot, '.larkx', 'meta.json');
     if (fs.existsSync(metaPath)) {
       res.json(JSON.parse(fs.readFileSync(metaPath, 'utf-8')));
     } else {

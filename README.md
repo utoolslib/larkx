@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://larkx.utoolslib.com/">
-    <img src="public/larkx-ai-codebase-indexer-for-ai-agents.png" alt="lark - AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot" width="600" />
+    <img src="public/larkx-ai-codebase-indexer-for-ai-agents.png" alt="larkx - AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot" width="600" />
   </a>
   <p><strong>Give your AI agent a map of your codebase, not a flood of raw files.</strong></p>
 
@@ -17,15 +17,17 @@
 
 ## What is larkx?
 
-When you ask Claude Code or Cursor to help with your code, the AI typically reads dozens of source files to figure out what's in your project. On a 200-file codebase that can cost **120,000+ tokens** before it writes a single line.
+**larkx** is an AI codebase indexer and [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that gives AI coding agents a compact map of your project instead of raw source files. It parses every file, function, class, import, and call relationship using [tree-sitter](https://tree-sitter.github.io/tree-sitter/) and stores the result in a graph that agents can query in targeted, token-efficient calls.
 
-**larkx fixes this.** It pre-indexes your entire codebase, every file, function, class, import, and call relationship, into a compact graph. Your AI agent reads the graph instead of the files. Same understanding, a fraction of the cost.
+When you ask Claude Code or Cursor to help with your code, the AI typically reads dozens of source files to understand your project. On a 200-file codebase that can cost **120,000+ tokens** before it writes a single line.
+
+**larkx fixes this.** Your AI agent reads the graph instead of the files. Same understanding, a fraction of the cost — up to **87% fewer tokens**.
 
 > Works with Claude Code, Cursor, GitHub Copilot, Gemini CLI, OpenAI Codex, Continue, Zed, Windsurf, and any MCP-compatible agent.
 
 ## Token savings at a glance
 
-| Project size | AI reads files directly | AI uses lark | You save |
+| Project size | AI reads files directly | AI uses larkx | You save |
 |---|---|---|---|
 | 50 files | ~30,000 tokens | ~4,000 tokens | **87%** |
 | 200 files | ~120,000 tokens | ~16,000 tokens | **87%** |
@@ -51,7 +53,7 @@ larkx stats     # see token estimates per level for your project
 
 After `larkx index`, a `.larkx/context.md` file is written to your project root. Every AI agent can read it with no extra setup needed.
 
-## How your AI agent uses lark
+## How your AI agent uses larkx
 
 larkx has three integration modes. You don't need all three, just pick what fits your agent.
 
@@ -128,6 +130,77 @@ Parsed with [tree-sitter](https://tree-sitter.github.io/tree-sitter/), fast and 
 | `larkx serve` | Open the visual graph in your browser |
 | `larkx mcp` | Start the MCP server |
 | `larkx mcp --check` | Health-check (exit 0 = OK, exit 1 = not responding) |
+
+## Verify it's working
+
+### Check MCP is active (Claude Code / Cursor)
+
+**Option 1 — health check command:**
+```bash
+larkx mcp --check
+# ✓ MCP server responding correctly  → working
+# ✗ MCP server did not respond       → see troubleshooting below
+```
+
+**Option 2 — paste this prompt into your agent:**
+
+Quick check (one line):
+```
+Call get_project_index and tell me how many files are indexed. Do not read any source files.
+```
+> **Pass:** agent calls the tool and returns a file count
+> **Fail:** agent says tools are unavailable, or starts opening source files
+
+Full diagnostic (tests every tool):
+```
+Run a larkx diagnostic — do not read any source files directly:
+1. Call get_project_index (level 1) and report the file count
+2. Pick any function name from the result and call search_symbol to locate it
+3. Call get_file_summary on any file from the index
+4. Call get_dead_code and report how many dead nodes are found
+For each step, say whether the tool returned a result or an error.
+```
+> **Pass:** all 4 steps return real data with no "tool not found" or "run larkx index first" errors
+> **Fail:** any step errors → check the troubleshooting section below
+
+**Option 3 — watch the agent's first move:**
+
+Ask the agent to explain a function in your codebase. If it immediately calls `get_project_index` or `search_symbol` before opening any files, MCP is working. If it opens source files directly, it is not.
+
+### Check CLI / context file is working
+
+```bash
+larkx stats           # shows file count, function count, last indexed time
+cat .larkx/context.md # should show a compact map of your codebase
+```
+
+If `context.md` is missing or empty, run `larkx index` first.
+
+## Troubleshooting
+
+### MCP tools not showing up in Claude Code (VS Code)
+
+1. Check `.mcp.json` exists in your project root — if not, run `larkx init`
+2. Reload VS Code: `Ctrl+Shift+P` → **Developer: Reload Window**
+3. Run `larkx index` to make sure the index exists
+4. Run `larkx mcp --check` to confirm the server starts correctly
+
+### MCP tools show up but return empty results
+
+1. Run `larkx index --force` to rebuild the index from scratch
+2. Check the project was indexed from the correct directory (`cd your-project && larkx index`)
+3. Run `larkx stats` to confirm files were indexed
+
+### Agent ignores larkx and reads source files directly
+
+This means the instruction hook isn't firing. Check:
+1. `CLAUDE.md` or `.cursorrules` exists in your project root — run `larkx setup-agents` if missing
+2. For Claude Code: check `.claude/settings.json` has a `UserPromptSubmit` hook — run `larkx init` to recreate it
+3. Try asking the agent explicitly: *"Use get_project_index first"*
+
+### MCP server fails on Windows (tree-sitter error)
+
+tree-sitter native bindings sometimes fail on Windows. larkx automatically falls back to regex parsing — indexing still works, just with slightly less precise call detection. Run `larkx index` and check the output for warnings.
 
 ## AI summaries (optional)
 

@@ -128,13 +128,13 @@ export function startMCPServer(): void {
       }
 
       case 'get_file_summary': {
-        const fp = (args.filepath as string) ?? '';
-        const fileNode = nodes.find(n => n.type === 'file' && n.file === fp);
-        const fileSym = index?.find(s => s.file === fp);
+        const fp = (args.filepath as string ?? '').replace(/\\/g, '/');
+        const fileNode = nodes.find(n => n.type === 'file' && (n.file === fp || n.file.endsWith('/' + fp)));
+        const fileSym = index?.find(s => s.file === fp || s.file.endsWith('/' + fp));
         if (!fileNode || !fileSym) {
           text = serializeError(`File not found in index: ${fp}`);
         } else {
-          text = serializeFile(fileNode, fileSym, summaries[fp]);
+          text = serializeFile(fileNode, fileSym, summaries[fileNode.file]);
         }
         break;
       }
@@ -155,12 +155,13 @@ export function startMCPServer(): void {
       }
 
       case 'get_impact': {
-        const fp = (args.filepath as string) ?? '';
+        const fp = (args.filepath as string ?? '').replace(/\\/g, '/');
+        const resolvedFp = nodes.find(n => n.type === 'file' && (n.file === fp || n.file.endsWith('/' + fp)))?.file ?? fp;
         const dependents = nodes.filter(n =>
           n.type === 'file' &&
-          graph?.edges.some(e => e.to === fp && e.from === n.file && e.type === 'imports')
+          graph?.edges.some(e => e.to === resolvedFp && e.from === n.file && e.type === 'imports')
         );
-        text = serializeImpact(fp, dependents);
+        text = serializeImpact(resolvedFp, dependents);
         break;
       }
 
@@ -173,7 +174,14 @@ export function startMCPServer(): void {
 
       case 'get_call_chain': {
         const sym = (args.symbol as string) ?? '';
-        const targetNodes = nodes.filter(n => n.type === 'function' && n.name === sym);
+        const symLower = sym.toLowerCase();
+        let targetNodes = nodes.filter(n => n.type === 'function' && n.name === sym);
+        if (targetNodes.length === 0) {
+          targetNodes = nodes.filter(n => n.type === 'function' && n.name.toLowerCase() === symLower);
+        }
+        if (targetNodes.length === 0) {
+          targetNodes = nodes.filter(n => n.type === 'function' && n.name.toLowerCase().includes(symLower));
+        }
         if (targetNodes.length === 0) {
           text = serializeError(`Symbol not found: ${sym}`);
           break;

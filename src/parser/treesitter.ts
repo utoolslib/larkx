@@ -64,7 +64,8 @@ function regexParse(filepath: string, content: string, lang: string): FileSymbol
 
   const lines = content.split('\n');
 
-  const fnPattern = /(?:^|\s)(?:export\s+)?(?:async\s+)?function\s+(\w+)|(?:^|\s)(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?\(/gm;
+  // Matches: function declarations, const arrow functions, and class methods
+  const fnPattern = /(?:^|\s)(?:export\s+)?(?:async\s+)?function\s+(\w+)|(?:^|\s)(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?\(|(?:^\s*)(?:(?:public|private|protected|static|abstract|override|async)\s+)*(?:get\s+|set\s+)?(\w+)\s*\([^)]*\)\s*(?::\s*\S+\s*)?\{/gm;
   const classPattern = /(?:^|\s)class\s+(\w+)/gm;
   const importPattern = /from\s+['"]([^'"]+)['"]/g;
   const exportPattern = /export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const)\s+(\w+)/g;
@@ -72,9 +73,10 @@ function regexParse(filepath: string, content: string, lang: string): FileSymbol
 
   let m: RegExpExecArray | null;
 
+  const METHOD_KEYWORDS = new Set(['if', 'else', 'for', 'while', 'switch', 'catch', 'return', 'new', 'delete', 'typeof', 'instanceof', 'throw', 'await', 'yield', 'case', 'default', 'try', 'finally', 'do', 'in', 'of', 'class', 'extends', 'super', 'this', 'import', 'export', 'from', 'constructor']);
   while ((m = fnPattern.exec(content)) !== null) {
-    const name = m[1] || m[2];
-    if (name) {
+    const name = m[1] || m[2] || m[3];
+    if (name && !METHOD_KEYWORDS.has(name)) {
       const lineNum = content.substring(0, m.index).split('\n').length;
       const signature = extractSignature(lines, lineNum);
       functions.push({ name, line: lineNum, signature });
@@ -95,35 +97,26 @@ function regexParse(filepath: string, content: string, lang: string): FileSymbol
     exports.push({ name: m[1] });
   }
 
-  // best-effort call extraction: for each function body, find calls
-  const functionNames = new Set(functions.map(f => f.name));
-  let currentFn: string | null = null;
+  // best-effort call extraction: attribute each line's calls to the enclosing function
+  const sortedFns = [...functions].sort((a, b) => a.line - b.line);
+  const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'instanceof', 'new', 'delete', 'void', 'throw', 'await', 'yield']);
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // detect entering a function
-    for (const fn of functions) {
-      if (fn.line === i + 1) {
-        currentFn = fn.name;
-        break;
-      }
+    const lineNo = i + 1;
+    // Find the last function whose start line is <= this line
+    let currentFn: string | null = null;
+    for (const fn of sortedFns) {
+      if (fn.line <= lineNo) currentFn = fn.name;
+      else break;
     }
-    if (currentFn) {
-      const callPat = /\b(\w+)\s*\(/g;
-      let cm: RegExpExecArray | null;
-      while ((cm = callPat.exec(line)) !== null) {
-        const callee = cm[1];
-        if (
-          callee !== currentFn &&
-          callee !== 'if' &&
-          callee !== 'for' &&
-          callee !== 'while' &&
-          callee !== 'switch' &&
-          callee !== 'catch' &&
-          callee.length > 1
-        ) {
-          calls.push({ caller: currentFn, callee, line: i + 1 });
-        }
+    if (!currentFn) continue;
+
+    const callPat = /\b(\w+)\s*\(/g;
+    let cm: RegExpExecArray | null;
+    while ((cm = callPat.exec(lines[i])) !== null) {
+      const callee = cm[1];
+      if (callee !== currentFn && !KEYWORDS.has(callee) && callee.length > 1) {
+        calls.push({ caller: currentFn, callee, line: lineNo });
       }
     }
   }

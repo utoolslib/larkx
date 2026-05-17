@@ -2,12 +2,13 @@ import type { GraphNode } from '../graph/index.js';
 import type { FileSymbols } from '../parser/treesitter.js';
 import { estimateTokens, formatTokens } from './tokens.js';
 
-const MAX_LINE = 240;
+const MAX_SYM_CHARS = 300;
+const MAX_IMPORT_CHARS = 200;
 
 export type ContextLevel = 1 | 2 | 3 | 4;
 
-function truncate(line: string): string {
-  return line.length > MAX_LINE ? line.slice(0, MAX_LINE - 1) + '…' : line;
+function truncatePart(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
 function inFolder(file: string, folder: string | null): boolean {
@@ -79,13 +80,13 @@ export function serializeIndex(
       ? sig.imports.map(i => `+${i.source}`).join(',')
       : '';
 
-    const line = truncate(`${fn.file}[${fn.lang ?? '?'}]: ${symPart}${importPart ? ' | ' + importPart : ''}`);
+    const line = `${fn.file}[${fn.lang ?? '?'}]: ${truncatePart(symPart, MAX_SYM_CHARS)}${importPart ? ' | ' + truncatePart(importPart, MAX_IMPORT_CHARS) : ''}`;
     body.push(line);
   }
 
   const bodyText = body.join('\n');
   const tokens = estimateTokens(bodyText);
-  const header = `# lark context · level ${level}${folder ? ' · folder ' + folder : ''} · ~${formatTokens(tokens)} tokens · ${fileNodes.length} files`;
+  const header = `# larkx context · level ${level}${folder ? ' · folder ' + folder : ''} · ~${formatTokens(tokens)} tokens · ${fileNodes.length} files`;
   return `${header}\n${bodyText}`;
 }
 
@@ -107,7 +108,7 @@ export function serializeFile(
 
   const importPart = symbols.imports.map(i => `+${i.source}`).join(',');
 
-  lines.push(truncate(`${node.file}[${node.lang ?? 'unknown'}]: ${symPart} | ${importPart}`));
+  lines.push(`${node.file}[${node.lang ?? 'unknown'}]: ${truncatePart(symPart, MAX_SYM_CHARS)} | ${truncatePart(importPart, MAX_IMPORT_CHARS)}`);
 
   return lines.join('\n');
 }
