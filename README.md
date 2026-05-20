@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://larkx.utoolslib.com/">
-    <img src="public/larkx-ai-codebase-indexer-for-ai-agents.png" alt="larkx - AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot" width="600" />
+    <img src="https://larkx.utoolslib.com/larkx-ai-codebase-indexer-for-ai-agents.png" alt="larkx - AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot" width="600" />
   </a>
   <p><strong>Give your AI agent a map of your codebase, not a flood of raw files.</strong></p>
 
@@ -21,19 +21,26 @@
 
 When you ask Claude Code or Cursor to help with your code, the AI typically reads dozens of source files to understand your project. On a 200-file codebase that can cost **120,000+ tokens** before it writes a single line.
 
-**larkx fixes this.** Your AI agent reads the graph instead of the files. Same understanding, a fraction of the cost — up to **87% fewer tokens**.
+**larkx fixes this.** Your AI agent reads the graph instead of the files. Same understanding, a fraction of the cost.
 
 > Works with Claude Code, Cursor, GitHub Copilot, Gemini CLI, OpenAI Codex, Continue, Zed, Windsurf, and any MCP-compatible agent.
 
-## Token savings at a glance
+## Real-time token savings
 
-| Project size | AI reads files directly | AI uses larkx | You save |
-|---|---|---|---|
-| 50 files | ~30,000 tokens | ~4,000 tokens | **87%** |
-| 200 files | ~120,000 tokens | ~16,000 tokens | **87%** |
-| 500 files | ~300,000 tokens | ~40,000 tokens | **87%** |
+Don't trust estimates — measure it. `larkx bench` runs Claude Code twice for each question (with and without larkx) and reports the real token usage straight from Claude.
 
-*Based on ~600 tokens/file average. Run `larkx stats` to see exact numbers for your project.*
+```
+▸ [overview] Give me a high-level overview of this codebase.
+  baseline ... 101K tok · $0.1565 · 7 turns · 38.3s
+  larkx    ...  52K tok · $0.0903 · 3 turns · 27.6s
+
+Summary (real tokens reported by Claude Code):
+id              baseline   larkx     saved   base $    larkx $
+---------------------------------------------------------------
+overview        101K       52K       49%     $0.1565   $0.0903
+```
+
+*Measured on the larkx repo itself. Run `larkx bench --only=overview` on your own project (~$0.10–0.20) to see your number.*
 
 ## Install
 
@@ -120,6 +127,8 @@ Parsed with [tree-sitter](https://tree-sitter.github.io/tree-sitter/), fast and 
 | `larkx index --force` | Re-parse everything, ignoring the hash cache |
 | `larkx index --ai` | Add one-sentence AI summaries per file |
 | `larkx index --watch` | Keep the index live as you edit |
+| `larkx bench` | Real-time token benchmark — runs Claude Code with and without larkx and reports actual usage |
+| `larkx bench "<prompt>"` | Same, plus a custom prompt of your own |
 | `larkx stats` | Token estimates per level for your project |
 | `larkx context` | Print the index to stdout |
 | `larkx context --level <1-4>` | 1=paths, 2=symbols, 3=signatures, 4=summaries |

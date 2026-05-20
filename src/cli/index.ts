@@ -40,10 +40,10 @@ program
     // Ask about AI summaries
     await promptAI(projectRoot);
 
-    // Ask about MCP setup first (affects agent file content)
+
     const mcpEnabled = await promptMCP(projectRoot);
 
-    // Ask which agents to configure, then create their files + hooks
+    // which agen to configure, then create their files + hooks
     const agents = await promptAgents();
     createAgentFiles(projectRoot, agents, mcpEnabled);
 
@@ -72,35 +72,53 @@ program
     if (opts.ai) {
       const { loadConfig } = await import('../storage/index.js');
       const config = loadConfig(projectRoot);
-      const aiConfig = config.ai?.provider
+      let aiConfig: { provider: 'local-claude' | 'anthropic'; apiKey?: string } | null = config.ai?.provider
         ? config.ai
         : process.env.ANTHROPIC_API_KEY
           ? { provider: 'anthropic' as const }
           : null;
 
       if (!aiConfig) {
-        console.log(chalk.yellow('⚠ AI not configured. Run: larkx init to set up AI summaries'));
-      } else {
-        console.log(chalk.yellow('⚠ AI summaries will call an LLM for each unsummarized file and may use a significant number of tokens.'));
-        let confirmed = false;
-        try {
-          const { confirm } = await import('@inquirer/prompts');
-          confirmed = await confirm({ message: 'Are you sure you want to continue?', default: false });
-        } catch {
-          confirmed = false;
-        }
-        if (confirmed) {
-          const { generateSummaries } = await import('../ai/summarizer.js');
-          await generateSummaries(projectRoot, result.nodes, aiConfig);
+        const hasClaude = await checkClaudeCLI();
+        if (hasClaude) {
+          saveAIConfig(projectRoot, { provider: 'local-claude' });
+          aiConfig = { provider: 'local-claude' };
         } else {
-          console.log('Skipped AI summaries.');
+          console.log(chalk.yellow('⚠ AI not configured.'));
+          console.log(chalk.dim('  Install Claude Code (https://claude.ai/download) and re-run, or set ANTHROPIC_API_KEY.'));
         }
+      }
+
+      if (aiConfig) {
+        const { generateSummaries } = await import('../ai/summarizer.js');
+        await generateSummaries(projectRoot, result.nodes, aiConfig);
       }
     }
 
     if (opts.watch) {
       await watchProject(projectRoot);
     }
+  });
+
+// bench
+program
+  .command('bench [prompt...]')
+  .description('Real before/after benchmark — runs Claude Code twice per query and reports actual tokens')
+  .option('--only <ids>', 'Comma-separated query ids to run')
+  .option('--ask <prompt>', 'Add a custom prompt on top of the suite')
+  .option('--trials <n>', 'Average over N runs per side', '1')
+  .option('--model <name>', 'Claude model to use (e.g. claude-haiku-4-5-20251001)')
+  .option('--timeout <sec>', 'Per-call timeout in seconds', '120')
+  .action(async (prompt: string[], opts) => {
+    const { runBenchmark } = await import('../bench/index.js');
+    const ask = opts.ask ?? (prompt.length ? prompt.join(' ') : undefined);
+    await runBenchmark(process.cwd(), {
+      only: opts.only,
+      ask,
+      trials: Number(opts.trials) || 1,
+      model: opts.model ?? null,
+      timeoutSec: Number(opts.timeout) || 120,
+    });
   });
 
 // stats
@@ -411,6 +429,30 @@ function getInstruction(mcpEnabled: boolean): string {
   return mcpEnabled ? MCP_INSTRUCTION : CLI_INSTRUCTION;
 }
 
+const LARKX_BENCH_SLASH_COMMAND = `---
+description: Real before/after token benchmark — runs Claude Code twice per query (with and without larkx MCP) and reports actual tokens
+argument-hint: "[\\"custom prompt\\"] | [--only=<ids>] [--model=<name>]"
+---
+
+Run the larkx real benchmark and report the results.
+
+Usage:
+- \`/larkx-bench\` — full auto-generated suite (6 queries from your project)
+- \`/larkx-bench --only=overview\` — subset of the suite
+- \`/larkx-bench "How does authentication work?"\` — suite **plus** your custom prompt
+- \`/larkx-bench --only=overview "How does auth work?"\` — subset **plus** custom
+- \`/larkx-bench --ask "Where is X defined?"\` — explicit flag form
+
+!\`larkx bench $ARGUMENTS\`
+
+When the command finishes, summarise:
+1. Per-query token reduction (baseline vs larkx, % saved)
+2. Total cost difference in USD
+3. Any queries that errored or were rate-limited
+
+The numbers come from Claude Code's own \`--output-format json\` usage block — they are real tokens billed by the API, not estimates.
+`;
+
 const AGENT_CONFIGS: Record<string, AgentConfig> = {
   claude: {
     file: 'CLAUDE.md',
@@ -421,7 +463,9 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
         const claudeDir = path.join(projectRoot, '.claude');
         const settingsPath = path.join(claudeDir, 'settings.json');
         const instruction = getInstruction(mcpEnabled);
+        const benchAllows = ['Bash(larkx bench)', 'Bash(larkx bench:*)'];
         const hook = {
+          permissions: { allow: benchAllows },
           hooks: {
             UserPromptSubmit: [
               {
@@ -436,12 +480,20 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
         if (fs.existsSync(settingsPath)) {
           try {
             const existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+            existing.permissions = existing.permissions ?? {};
+            existing.permissions.allow = existing.permissions.allow ?? [];
+            for (const rule of benchAllows) {
+              if (!existing.permissions.allow.includes(rule)) {
+                existing.permissions.allow.push(rule);
+              }
+            }
             if (!existing.hooks) {
               existing.hooks = hook.hooks;
               fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8');
-              console.log(chalk.green('  ✓ Updated .claude/settings.json with UserPromptSubmit hook'));
+              console.log(chalk.green('  ✓ Updated .claude/settings.json with UserPromptSubmit hook + bench allowlist'));
             } else {
-              console.log(chalk.yellow('  ⚠ .claude/settings.json already has hooks — skipped'));
+              fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8');
+              console.log(chalk.yellow('  ⚠ .claude/settings.json already has hooks — bench allowlist updated, hooks skipped'));
             }
           } catch {
             console.log(chalk.yellow('  ⚠ Could not update .claude/settings.json'));
@@ -452,6 +504,18 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
         }
       } catch (err) {
         console.log(chalk.yellow('  ⚠ Could not set up Claude Code hooks: ' + (err instanceof Error ? err.message : 'Unknown error')));
+      }
+
+      try {
+        const commandsDir = path.join(projectRoot, '.claude', 'commands');
+        const benchCmdPath = path.join(commandsDir, 'larkx-bench.md');
+        if (!fs.existsSync(commandsDir)) fs.mkdirSync(commandsDir, { recursive: true });
+        if (!fs.existsSync(benchCmdPath)) {
+          fs.writeFileSync(benchCmdPath, LARKX_BENCH_SLASH_COMMAND, 'utf-8');
+          console.log(chalk.green('  ✓ Created .claude/commands/larkx-bench.md (slash command)'));
+        }
+      } catch {
+        // ignore
       }
     },
   },

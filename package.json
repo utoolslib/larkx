@@ -1,7 +1,7 @@
 {
   "name": "larkx",
-  "version": "0.1.1",
-  "description": "AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot. Pre-index your project into a compact graph — cut context token usage by up to 87%.",
+  "version": "0.2.0",
+  "description": "AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot. Pre-index your project into a compact graph and measure real token savings with `larkx bench`.",
   "type": "module",
   "bin": {
     "larkx": "bin/larkx.js"
@@ -14,7 +14,7 @@
   "files": [
     "dist",
     "bin",
-    "public",
+    "public/graph.html",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -51,6 +51,8 @@
     "codebase-indexer",
     "token-optimization",
     "context-window",
+    "benchmark",
+    "token-benchmark",
     "ast",
     "tree-sitter",
     "developer-tools",

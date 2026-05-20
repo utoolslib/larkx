@@ -2,6 +2,30 @@
 
 All notable changes to larkx will be documented here.
 
+## [0.2.0] - 2026-05-20
+
+### Added
+- `larkx bench` — real-time token benchmark. Runs Claude Code twice per query (once without MCP, once with larkx MCP) and reports actual token usage from Claude's `--output-format json` — not estimates.
+- Auto-generated benchmark suite (`overview`, `file-summary`, `find-symbol`, `call-chain`, `impact`, `dead-code`) derived from each user's own index, so it works on any project.
+- Custom prompt support: `larkx bench "your question"` or `larkx bench --ask "..."` runs your prompt alongside the default suite.
+- Saved reports at `.larkx/bench/<timestamp>.json` with raw `usage` blocks from both runs.
+- `/larkx-bench` slash command for Claude Code, plus auto-allowlisted `Bash(larkx bench)` and `Bash(larkx bench:*)` entries in `.claude/settings.json` on `larkx init`.
+- `--trials <n>` flag on `larkx bench` to average over multiple runs per side (smooths out Claude's ±10–20% per-run variance).
+
+### Changed
+- `larkx index --ai` now auto-configures `local-claude` when the Claude CLI is installed but no AI provider is saved.
+- `larkx index --ai` no longer asks a redundant confirm prompt — the flag already opted in.
+- AI summarizer captures stderr, treats `API Error:` responses as failures, and reports per-file error counts instead of silently claiming success.
+- AI summarizer throttles between `claude -p` calls (800ms) and aborts on rate-limit instead of burning the rest of the queue.
+- README claims anchored in measured numbers from `larkx bench` instead of formula-based estimates.
+
+### Fixed
+- Windows `EINVAL` when spawning `claude.cmd` from Node 18.20.2+ — bench now routes through `cmd.exe /d /s /c` with proper arg quoting on win32.
+
+### Removed
+- `benchmarks/` folder (old calculated/estimated scripts: `token-compare.mjs`, `transcript-tokens.mjs`, `real-claude-bench.mjs`). Replaced by `larkx bench`.
+- `npm run benchmark`, `npm run benchmark:real`, `npm run benchmark:transcript` scripts from `package.json`.
+
 ## [0.1.0] - 2026-05-16
 
 First public release.

@@ -1,0 +1,16 @@
+# Source files — dist/ is the published build
+src/
+tsconfig.json
+benchmarks/
+
+# Dev/local files
+.larkx/
+.claude/
+*.tgz
+*.log
+.env
+.env.*
+.mcp.json
+
+# Large images not needed at runtime
+public/*.png

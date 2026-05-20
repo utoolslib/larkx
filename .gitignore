@@ -8,3 +8,4 @@ dist
 .env
 .env.*
 .mcp.json
+benchmarks/results/
