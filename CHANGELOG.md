@@ -2,6 +2,12 @@
 
 All notable changes to larkx will be documented here.
 
+## [0.2.1] - 2026-05-21
+
+### Changed
+- README trimmed to essential info only; benchmark output removed in favour of a link to the docs page
+- npm package now includes only `public/graph.html` instead of the full `public/` folder, reducing package size from 1.7 MB to 42 KB
+
 ## [0.2.0] - 2026-05-20
 
 ### Added
