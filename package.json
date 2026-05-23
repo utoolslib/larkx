@@ -1,6 +1,6 @@
 {
   "name": "larkx",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AI codebase indexer and MCP server for Claude Code, Cursor, and Copilot. Pre-index your project into a compact graph and measure real token savings with `larkx bench`.",
   "type": "module",
   "bin": {
