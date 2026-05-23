@@ -49,7 +49,17 @@ larkx index     # build the index
 
 ## Supported languages
 
-TypeScript · JavaScript · Python · Go · Rust · Java · C · C++ · C# · Ruby · PHP · Swift · Kotlin · Scala · Shell
+Current indexing targets these extensions:
+
+- JavaScript / TypeScript: `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs`
+- Python: `.py`
+- Go: `.go`
+- Rust: `.rs`
+- Java: `.java`
+- C/C++: `.c`, `.cpp`
+- C#: `.cs`
+
+Files in other languages are currently skipped.
 
 ## CLI reference
 
