@@ -2,6 +2,17 @@
 
 All notable changes to larkx will be documented here.
 
+## [0.2.2] - 2026-05-23
+
+### Added
+- Agent instruction files (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, `GEMINI.md`) are now auto-refreshed on every `larkx index` run — no manual updates needed when larkx updates its instructions.
+- `src/agents.ts` — shared module for all agent configs and instructions; single source of truth used by both `larkx init` and `larkx index`.
+- `agents` and `mcpEnabled` persisted to `.larkx/config.json` on `larkx init` so subsequent index runs know which files to refresh.
+- Files without the `<!-- larkx-managed -->` marker are never overwritten — user-edited agent files are safe.
+
+### Changed
+- README trimmed to essentials only: install, quick start, agents table, languages, CLI reference, docs link.
+
 ## [0.2.1] - 2026-05-21
 
 ### Changed

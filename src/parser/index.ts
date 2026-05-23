@@ -4,9 +4,10 @@ import crypto from 'crypto';
 import { walkProject } from './walker.js';
 import { parseFile } from './treesitter.js';
 import type { FileSymbols } from './treesitter.js';
-import { buildGraph } from '../graph/index.js';
+import { buildGraph, buildReverseIndex } from '../graph/index.js';
 import type { GraphNode, GraphEdge } from '../graph/index.js';
-import { saveIndex, saveGraph, saveMeta, saveContext, loadSummaries, loadConfig } from '../storage/index.js';
+import { saveIndex, saveGraph, saveReverseIndex, saveMeta, saveContext, loadSummaries, loadConfig } from '../storage/index.js';
+import { refreshAgentFiles } from '../agents.js';
 import { serializeIndex } from '../mcp/serializer.js';
 
 function buildContextMd(body: string): string {
@@ -133,11 +134,16 @@ export async function indexProject(
 
   saveIndex(projectRoot, allSymbols);
   saveGraph(projectRoot, graph);
+  saveReverseIndex(projectRoot, buildReverseIndex(graph));
   saveMeta(projectRoot, meta);
 
   const summaries = (loadSummaries(projectRoot) as Record<string, string> | null) ?? {};
   const contextBody = serializeIndex(graph.nodes, summaries, { level: 2, fileSymbols: allSymbols });
   saveContext(projectRoot, buildContextMd(contextBody));
+
+  if (config.agents?.length) {
+    refreshAgentFiles(projectRoot, config.agents, config.mcpEnabled ?? false);
+  }
 
   console.log(
     `✓ Indexed ${files.length} files (${changed} changed, ${cached} cached), ${functionCount} functions, ${classCount} classes`
@@ -187,6 +193,7 @@ export async function watchProject(projectRoot: string): Promise<void> {
 
     const graph = buildGraph(idx);
     saveGraph(projectRoot, graph);
+    saveReverseIndex(projectRoot, buildReverseIndex(graph));
 
     const summaries = (loadSummaries(projectRoot) as Record<string, string> | null) ?? {};
     saveContext(projectRoot, buildContextMd(serializeIndex(graph.nodes, summaries, { level: 2, fileSymbols: idx })));
@@ -204,6 +211,7 @@ export async function watchProject(projectRoot: string): Promise<void> {
 
     const graph = buildGraph(idx);
     saveGraph(projectRoot, graph);
+    saveReverseIndex(projectRoot, buildReverseIndex(graph));
 
     const summaries = (loadSummaries(projectRoot) as Record<string, string> | null) ?? {};
     saveContext(projectRoot, buildContextMd(serializeIndex(graph.nodes, summaries, { level: 2, fileSymbols: idx })));

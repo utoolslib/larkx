@@ -24,6 +24,24 @@ export type Graph = {
   edges: GraphEdge[];
 };
 
+export type ReverseIndex = {
+  dependents: Record<string, string[]>;
+  callers: Record<string, string[]>;
+};
+
+export function buildReverseIndex(graph: Graph): ReverseIndex {
+  const dependents: Record<string, string[]> = {};
+  const callers: Record<string, string[]> = {};
+  for (const e of graph.edges) {
+    if (e.type === 'imports') {
+      (dependents[e.to] ??= []).push(e.from);
+    } else if (e.type === 'calls') {
+      (callers[e.to] ??= []).push(e.from);
+    }
+  }
+  return { dependents, callers };
+}
+
 function isTestFile(filePath: string): boolean {
   return filePath.includes('test') || filePath.includes('.spec.') || filePath.includes('.test.');
 }

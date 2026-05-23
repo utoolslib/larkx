@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { AGENT_CONFIGS, getInstruction, createAgentFile } from '../agents.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,7 +46,8 @@ program
 
     // which agen to configure, then create their files + hooks
     const agents = await promptAgents();
-    createAgentFiles(projectRoot, agents, mcpEnabled);
+    const silentHook = agents.includes('claude') ? await promptHookMode() : true;
+    createAgentFiles(projectRoot, agents, mcpEnabled, silentHook);
 
     console.log(chalk.green('✓ Initialized. Run: larkx index'));
   });
@@ -109,8 +111,15 @@ program
   .option('--trials <n>', 'Average over N runs per side', '1')
   .option('--model <name>', 'Claude model to use (e.g. claude-haiku-4-5-20251001)')
   .option('--timeout <sec>', 'Per-call timeout in seconds', '120')
+  .option('--detail', 'Show per-query token breakdown (input / cache-write / cache-read / output)')
+  .option('--history [n]', 'Print trend table of last N saved runs without running new calls (default 10)')
   .action(async (prompt: string[], opts) => {
-    const { runBenchmark } = await import('../bench/index.js');
+    const { runBenchmark, showBenchHistory } = await import('../bench/index.js');
+    if (opts.history !== undefined) {
+      const n = opts.history === true ? 10 : Number(opts.history) || 10;
+      showBenchHistory(process.cwd(), n);
+      return;
+    }
     const ask = opts.ask ?? (prompt.length ? prompt.join(' ') : undefined);
     await runBenchmark(process.cwd(), {
       only: opts.only,
@@ -118,6 +127,7 @@ program
       trials: Number(opts.trials) || 1,
       model: opts.model ?? null,
       timeoutSec: Number(opts.timeout) || 120,
+      detail: !!opts.detail,
     });
   });
 
@@ -349,7 +359,8 @@ program
       console.log(chalk.yellow('No agents selected.'));
       return;
     }
-    createAgentFiles(projectRoot, agents, mcpEnabled);
+    const silentHook = agents.includes('claude') ? await promptHookMode() : true;
+    createAgentFiles(projectRoot, agents, mcpEnabled, silentHook);
   });
 
 // context
@@ -415,19 +426,7 @@ program
     }
   });
 
-type AgentConfig = {
-  file: string;
-  label: string;
-  content: (mcpEnabled: boolean) => string;
-  extraSetup?: (projectRoot: string, mcpEnabled: boolean) => void;
-};
 
-const CLI_INSTRUCTION = 'Before working on any task, read the file `.larkx/context.md` — it contains a compact map of all files, functions, classes, and imports in this project. Do not open source files until you have read it. If the file does not exist, run `larkx index` first.';
-const MCP_INSTRUCTION = 'Before working on any task, always use larkx MCP tools first: get_project_index for a full overview, search_symbol to locate functions, get_file_summary before reading a file, get_impact before changing a file, get_call_chain to trace logic, get_dead_code to find unused code. If MCP returns no result, read `.larkx/context.md` as a fallback overview. Only read individual source files directly if neither MCP nor context.md is available.';
-
-function getInstruction(mcpEnabled: boolean): string {
-  return mcpEnabled ? MCP_INSTRUCTION : CLI_INSTRUCTION;
-}
 
 const LARKX_BENCH_SLASH_COMMAND = `---
 description: Real before/after token benchmark — runs Claude Code twice per query (with and without larkx MCP) and reports actual tokens
@@ -453,93 +452,6 @@ When the command finishes, summarise:
 The numbers come from Claude Code's own \`--output-format json\` usage block — they are real tokens billed by the API, not estimates.
 `;
 
-const AGENT_CONFIGS: Record<string, AgentConfig> = {
-  claude: {
-    file: 'CLAUDE.md',
-    label: 'Claude Code',
-    content: (mcpEnabled) => `# Project Intelligence\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
-    extraSetup: (projectRoot, mcpEnabled) => {
-      try {
-        const claudeDir = path.join(projectRoot, '.claude');
-        const settingsPath = path.join(claudeDir, 'settings.json');
-        const instruction = getInstruction(mcpEnabled);
-        const benchAllows = ['Bash(larkx bench)', 'Bash(larkx bench:*)'];
-        const hook = {
-          permissions: { allow: benchAllows },
-          hooks: {
-            UserPromptSubmit: [
-              {
-                hooks: [
-                  { type: 'command', command: `echo 'IMPORTANT: ${instruction}'`, shell: 'bash' },
-                ],
-              },
-            ],
-          },
-        };
-        if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
-        if (fs.existsSync(settingsPath)) {
-          try {
-            const existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-            existing.permissions = existing.permissions ?? {};
-            existing.permissions.allow = existing.permissions.allow ?? [];
-            for (const rule of benchAllows) {
-              if (!existing.permissions.allow.includes(rule)) {
-                existing.permissions.allow.push(rule);
-              }
-            }
-            if (!existing.hooks) {
-              existing.hooks = hook.hooks;
-              fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8');
-              console.log(chalk.green('  ✓ Updated .claude/settings.json with UserPromptSubmit hook + bench allowlist'));
-            } else {
-              fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8');
-              console.log(chalk.yellow('  ⚠ .claude/settings.json already has hooks — bench allowlist updated, hooks skipped'));
-            }
-          } catch {
-            console.log(chalk.yellow('  ⚠ Could not update .claude/settings.json'));
-          }
-        } else {
-          fs.writeFileSync(settingsPath, JSON.stringify(hook, null, 2), 'utf-8');
-          console.log(chalk.green('  ✓ Created .claude/settings.json with UserPromptSubmit hook'));
-        }
-      } catch (err) {
-        console.log(chalk.yellow('  ⚠ Could not set up Claude Code hooks: ' + (err instanceof Error ? err.message : 'Unknown error')));
-      }
-
-      try {
-        const commandsDir = path.join(projectRoot, '.claude', 'commands');
-        const benchCmdPath = path.join(commandsDir, 'larkx-bench.md');
-        if (!fs.existsSync(commandsDir)) fs.mkdirSync(commandsDir, { recursive: true });
-        if (!fs.existsSync(benchCmdPath)) {
-          fs.writeFileSync(benchCmdPath, LARKX_BENCH_SLASH_COMMAND, 'utf-8');
-          console.log(chalk.green('  ✓ Created .claude/commands/larkx-bench.md (slash command)'));
-        }
-      } catch {
-        // ignore
-      }
-    },
-  },
-  copilot: {
-    file: '.github/copilot-instructions.md',
-    label: 'GitHub Copilot',
-    content: (mcpEnabled) => `# Copilot Instructions\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
-  },
-  cursor: {
-    file: '.cursorrules',
-    label: 'Cursor',
-    content: (mcpEnabled) => `# Cursor Rules\n\nThis project uses larkx for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
-  },
-  codex: {
-    file: 'AGENTS.md',
-    label: 'OpenAI Codex',
-    content: (mcpEnabled) => `# Agent Instructions\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
-  },
-  gemini: {
-    file: 'GEMINI.md',
-    label: 'Gemini CLI',
-    content: (mcpEnabled) => `# Project Intelligence\n\nThis project uses [larkx](https://github.com/utoolslib/larkx) for code indexing.\n\n${getInstruction(mcpEnabled)}\n`,
-  },
-};
 
 async function checkClaudeCLI(): Promise<boolean> {
   const { execSync } = await import('child_process');
@@ -655,6 +567,34 @@ async function promptMCP(projectRoot: string): Promise<boolean> {
   return true;
 }
 
+async function promptHookMode(): Promise<boolean> {
+  try {
+    const { select } = await import('@inquirer/prompts');
+    const mode = await select<'silent' | 'visible'>({
+      message: 'How should the larkx hook remind Claude to use MCP tools?',
+      choices: [
+        {
+          name: 'Silent  (inject instruction automatically, no banner shown)',
+          value: 'silent',
+        },
+        {
+          name: 'Visible (show a reminder banner on every message)',
+          value: 'visible',
+        },
+      ],
+    });
+    return mode === 'silent';
+  } catch {
+    const { createInterface } = await import('readline');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise<string>((resolve) => {
+      rl.question(chalk.bold('Silent hook? Injects instruction without showing a banner [Y/n]: '), resolve);
+      rl.close();
+    });
+    return answer.trim().toLowerCase() !== 'n';
+  }
+}
+
 async function promptAgents(): Promise<string[]> {
   try {
     const { checkbox } = await import('@inquirer/prompts');
@@ -695,20 +635,76 @@ async function promptAgentsFallback(): Promise<string[]> {
   });
 }
 
-function createAgentFiles(projectRoot: string, agents: string[], mcpEnabled: boolean): void {
+function claudeExtraSetup(projectRoot: string, mcpEnabled: boolean, silentHook: boolean): void {
+  try {
+    const claudeDir = path.join(projectRoot, '.claude');
+    const settingsPath = path.join(claudeDir, 'settings.json');
+    const instruction = getInstruction(mcpEnabled);
+    const benchAllows = ['Bash(larkx bench)', 'Bash(larkx bench:*)'];
+    const hookCommand = silentHook
+      ? `echo '{"suppressOutput": true, "systemMessage": "${instruction.replace(/'/g, "\\'")}"}'`
+      : `echo 'IMPORTANT: ${instruction}'`;
+    const hook = {
+      permissions: { allow: benchAllows },
+      hooks: {
+        UserPromptSubmit: [{ hooks: [{ type: 'command', command: hookCommand, shell: 'bash' }] }],
+      },
+    };
+    if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
+    if (fs.existsSync(settingsPath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        existing.permissions = existing.permissions ?? {};
+        existing.permissions.allow = existing.permissions.allow ?? [];
+        for (const rule of benchAllows) {
+          if (!existing.permissions.allow.includes(rule)) existing.permissions.allow.push(rule);
+        }
+        if (!existing.hooks) existing.hooks = hook.hooks;
+        fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8');
+        console.log(chalk.green('  ✓ Updated .claude/settings.json with UserPromptSubmit hook + bench allowlist'));
+      } catch {
+        console.log(chalk.yellow('  ⚠ Could not update .claude/settings.json'));
+      }
+    } else {
+      fs.writeFileSync(settingsPath, JSON.stringify(hook, null, 2), 'utf-8');
+      console.log(chalk.green('  ✓ Created .claude/settings.json with UserPromptSubmit hook'));
+    }
+  } catch (err) {
+    console.log(chalk.yellow('  ⚠ Could not set up Claude Code hooks: ' + (err instanceof Error ? err.message : 'Unknown error')));
+  }
+
+  try {
+    const commandsDir = path.join(projectRoot, '.claude', 'commands');
+    const benchCmdPath = path.join(commandsDir, 'larkx-bench.md');
+    if (!fs.existsSync(commandsDir)) fs.mkdirSync(commandsDir, { recursive: true });
+    if (!fs.existsSync(benchCmdPath)) {
+      fs.writeFileSync(benchCmdPath, LARKX_BENCH_SLASH_COMMAND, 'utf-8');
+      console.log(chalk.green('  ✓ Created .claude/commands/larkx-bench.md (slash command)'));
+    }
+  } catch { /* ignore */ }
+}
+
+function createAgentFiles(projectRoot: string, agents: string[], mcpEnabled: boolean, silentHook = true): void {
+  // Persist choices so `larkx index` can refresh agent files automatically
+  try {
+    const configPath = path.join(projectRoot, '.larkx', 'config.json');
+    const existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    existing.agents = agents;
+    existing.mcpEnabled = mcpEnabled;
+    fs.writeFileSync(configPath, JSON.stringify(existing, null, 2), 'utf-8');
+  } catch { /* ignore */ }
+
   for (const key of agents) {
     const cfg = AGENT_CONFIGS[key];
     if (!cfg) continue;
     const filePath = path.join(projectRoot, cfg.file);
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     if (fs.existsSync(filePath)) {
       console.log(chalk.yellow(`  ⚠ ${cfg.file} already exists — skipped`));
     } else {
-      fs.writeFileSync(filePath, cfg.content(mcpEnabled), 'utf-8');
+      createAgentFile(projectRoot, key, mcpEnabled);
       console.log(chalk.green(`  ✓ Created ${cfg.file} (${cfg.label})`));
     }
-    cfg.extraSetup?.(projectRoot, mcpEnabled);
+    if (key === 'claude') claudeExtraSetup(projectRoot, mcpEnabled, silentHook);
   }
 }
 

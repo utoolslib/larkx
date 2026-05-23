@@ -50,6 +50,8 @@ export type CodeGraphConfig = {
   exclude: string[];
   entryPoints: string[];
   ai?: AiConfig;
+  agents?: string[];
+  mcpEnabled?: boolean;
 };
 
 export function initStorage(projectRoot: string): void {
@@ -106,6 +108,14 @@ export function loadGraph(projectRoot: string): object | null {
   return readJson(cgFile(projectRoot, 'graph.json'));
 }
 
+export function saveReverseIndex(projectRoot: string, data: object): void {
+  writeJson(cgFile(projectRoot, 'reverse.json'), data);
+}
+
+export function loadReverseIndex(projectRoot: string): object | null {
+  return readJson(cgFile(projectRoot, 'reverse.json'));
+}
+
 export function saveContext(projectRoot: string, content: string): void {
   fs.writeFileSync(cgFile(projectRoot, 'context.md'), content, 'utf-8');
 }
@@ -128,6 +138,8 @@ export function loadConfig(projectRoot: string): CodeGraphConfig {
     exclude:     raw?.exclude     ?? DEFAULT_CONFIG.exclude,
     entryPoints: raw?.entryPoints ?? DEFAULT_CONFIG.entryPoints,
     ai:          raw?.ai,
+    agents:      raw?.agents,
+    mcpEnabled:  raw?.mcpEnabled,
   };
 }
 

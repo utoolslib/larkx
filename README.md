@@ -17,9 +17,9 @@
 
 ## What is larkx?
 
-**larkx** is an AI codebase indexer and [MCP](https://modelcontextprotocol.io) server. Instead of reading raw source files, your AI agent queries a compact graph — same understanding, far fewer tokens.
+**larkx** is an AI codebase indexer and [MCP](https://modelcontextprotocol.io) server. Instead of reading raw source files, your AI agent queries a compact graph - same understanding, far fewer tokens.
 
-Works with Claude Code, Cursor, GitHub Copilot, Gemini CLI, OpenAI Codex, Continue, Zed, Windsurf, and any MCP-compatible agent.
+Works with Claude Code, Cursor, GitHub Copilot, Gemini CLI, and OpenAI Codex.
 
 ## Install
 
@@ -27,48 +27,15 @@ Works with Claude Code, Cursor, GitHub Copilot, Gemini CLI, OpenAI Codex, Contin
 npm install -g larkx
 ```
 
-## Get started
+## Quick start
 
 ```bash
 cd your-project
-larkx init      # one-time wizard: sets up MCP, agent files, and hooks
-larkx index     # parse all files and build the index
-larkx stats     # see token estimates per level for your project
+larkx init      # one-time setup: MCP, agent files, hooks
+larkx index     # build the index
 ```
 
-After `larkx index`, a `.larkx/context.md` file is written to your project root. Every AI agent can read it with no extra setup.
-
-## How your AI agent uses larkx
-
-### MCP server (Claude Code, Cursor, Continue, Zed, Windsurf)
-
-6 targeted query tools instead of raw file access:
-
-| Tool | What it answers | Cost |
-|------|----------------|------|
-| `get_project_index` | "What files and functions exist?" | ~8–250 tok/file |
-| `search_symbol` | "Where is `validateUser` defined?" | ~30 tokens |
-| `get_file_summary` | "What does `auth/login.ts` do?" | ~100 tokens |
-| `get_impact` | "What breaks if I change this file?" | ~100 tokens |
-| `get_call_chain` | "What calls `processPayment`?" | ~100 tokens |
-| `get_dead_code` | "What code is never used?" | ~200 tokens |
-
-```bash
-claude mcp add larkx -- larkx mcp   # global setup (terminal Claude Code)
-# larkx init creates .mcp.json for per-project VS Code setup
-```
-
-### Context file (Copilot, Codex, Gemini, any file-reading agent)
-
-Every `larkx index` run writes `.larkx/context.md` — a plain-text snapshot at ~80 tokens/file. `larkx init` creates `CLAUDE.md`, `.cursorrules`, `AGENTS.md`, and `GEMINI.md` that tell each agent to read it first.
-
-### CLI output
-
-```bash
-larkx context                        # full index to stdout
-larkx context --level 1              # file paths only (~8 tok/file)
-larkx context --folder src/payments  # scope to a subtree
-```
+`larkx init` creates instruction files for each agent you use (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, `GEMINI.md`). These files are auto-updated on every `larkx index` run.
 
 ## Supported agents
 
@@ -76,8 +43,6 @@ larkx context --folder src/payments  # scope to a subtree
 |-------|:---:|:------------:|
 | Claude Code | ✓ | ✓ |
 | Cursor | ✓ | ✓ |
-| Continue | ✓ | ✓ |
-| Zed / Windsurf | ✓ | ✓ |
 | GitHub Copilot | - | ✓ |
 | OpenAI Codex | - | ✓ |
 | Gemini CLI | - | ✓ |
@@ -90,11 +55,11 @@ TypeScript · JavaScript · Python · Go · Rust · Java · C · C++ · C# · Ru
 
 | Command | What it does |
 |---------|-------------|
-| `larkx init` | Setup wizard: MCP, AI summaries, agent instruction files |
-| `larkx index` | Build or update the index |
-| `larkx index --ai` | Add one-sentence AI summaries per file |
+| `larkx init` | Setup wizard: MCP, agent instruction files, hooks |
+| `larkx index` | Build or update the index; auto-refreshes agent files |
+| `larkx index --ai` | Add AI summaries per file |
 | `larkx index --watch` | Keep the index live as you edit |
-| `larkx bench` | Real-time token benchmark — measure actual savings on your project |
+| `larkx bench` | Token benchmark — measure actual savings on your project |
 | `larkx stats` | Token estimates per level |
 | `larkx context` | Print the index to stdout |
 | `larkx search <name>` | Find a function or class by name |
@@ -103,10 +68,6 @@ TypeScript · JavaScript · Python · Go · Rust · Java · C · C++ · C# · Ru
 | `larkx serve` | Open the visual graph in your browser |
 | `larkx mcp --check` | Health-check the MCP server |
 
-## Measure real savings
-
-`larkx bench` runs Claude Code with and without larkx and reports actual token usage. See the [bench docs](https://larkx.utoolslib.com/docs/cli/bench/) for usage and examples.
-
 ## Documentation
 
-Full setup guides, MCP integration, token optimization, troubleshooting, and FAQ at **[larkx.utoolslib.com/docs](https://larkx.utoolslib.com/docs)**.
+Full setup guides, MCP integration, token optimization, and FAQ at **[Documentation](https://larkx.utoolslib.com/docs)**.
